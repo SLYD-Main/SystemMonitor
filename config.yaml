@@ -1,0 +1,42 @@
+# System Monitor Configuration
+
+# Alert thresholds (in percentage for most metrics)
+thresholds:
+  cpu:
+    warning: 70
+    critical: 90
+  memory:
+    warning: 75
+    critical: 90
+  disk:
+    warning: 80
+    critical: 95
+  gpu:
+    warning: 80
+    critical: 95
+  network:
+    # in MB/s
+    warning: 100
+    critical: 500
+
+# Historical data settings
+history:
+  enabled: true
+  retention_hours: 24
+  interval_seconds: 5
+
+# API settings
+api:
+  host: "0.0.0.0"
+  port: 8000
+  enable_cors: true
+
+# CLI settings
+cli:
+  refresh_rate: 1  # seconds
+  show_graphs: true
+
+# Export settings
+export:
+  directory: "./exports"
+  formats: ["json", "csv"]

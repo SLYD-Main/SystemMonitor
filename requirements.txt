@@ -1,0 +1,25 @@
+# Core monitoring
+psutil>=5.9.0
+
+# GPU monitoring - supports NVIDIA, AMD (via psutil fallback)
+gputil>=1.4.0
+pynvml>=11.5.0
+
+# CLI interface
+rich>=13.7.0
+click>=8.1.7
+
+# REST API
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.0
+
+# Data storage and export
+pyyaml>=6.0.1
+pandas>=2.1.0
+
+# Scheduling for background tasks
+apscheduler>=3.10.4
+
+# Internet speed testing
+speedtest-cli>=2.1.3
