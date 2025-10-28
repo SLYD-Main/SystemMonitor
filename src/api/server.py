@@ -13,6 +13,7 @@ from ..monitors.disk import DiskMonitor
 from ..monitors.network import NetworkMonitor
 from ..monitors.gpu import GPUMonitor
 from ..monitors.speedtest import SpeedTestMonitor
+from ..monitors.gpu_benchmark import GPUBenchmark
 from ..storage.database import HistoricalDatabase
 from ..storage.exporter import DataExporter
 from ..alerts.alert_manager import AlertManager
@@ -43,6 +44,7 @@ class MonitoringAPI:
         self.network_monitor = NetworkMonitor()
         self.gpu_monitor = GPUMonitor()
         self.speedtest_monitor = SpeedTestMonitor()
+        self.gpu_benchmark = GPUBenchmark()
 
         # Initialize storage and alerts
         self.db = HistoricalDatabase()
@@ -77,6 +79,7 @@ class MonitoringAPI:
                     "disk": "/api/disk",
                     "network": "/api/network",
                     "gpu": "/api/gpu",
+                    "gpu_benchmark": "/api/gpu/benchmark",
                     "speedtest": "/api/speedtest",
                     "history": "/api/history/{metric}",
                     "alerts": "/api/alerts",
@@ -226,6 +229,58 @@ class MonitoringAPI:
             """Get client IP and ISP information."""
             try:
                 return self.speedtest_monitor.get_client_info()
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.post("/api/gpu/benchmark")
+        async def run_gpu_benchmark(
+            device_id: int = Query(0, description="GPU device ID"),
+            test_type: str = Query("full", description="Benchmark type: info, memory, compute, stress, full"),
+            duration: int = Query(10, description="Stress test duration in seconds")
+        ):
+            """Run GPU benchmark tests."""
+            try:
+                if not self.gpu_benchmark.is_available():
+                    raise HTTPException(
+                        status_code=400,
+                        detail="No GPU or GPU libraries available. Install PyTorch with CUDA or pynvml."
+                    )
+
+                if test_type == "info":
+                    result = self.gpu_benchmark.get_gpu_info(device_id)
+                elif test_type == "memory":
+                    result = self.gpu_benchmark.benchmark_memory_bandwidth(device_id)
+                elif test_type == "compute":
+                    result = self.gpu_benchmark.benchmark_compute_performance(device_id)
+                elif test_type == "stress":
+                    result = self.gpu_benchmark.stress_test(device_id, duration_seconds=duration)
+                elif test_type == "full":
+                    result = self.gpu_benchmark.run_full_benchmark(device_id)
+                else:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid test_type. Must be one of: info, memory, compute, stress, full"
+                    )
+
+                if 'error' in result:
+                    raise HTTPException(status_code=500, detail=result.get('error'))
+
+                return result
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.get("/api/gpu/benchmark/info")
+        async def get_gpu_benchmark_info(device_id: int = Query(0, description="GPU device ID")):
+            """Get GPU information for benchmarking."""
+            try:
+                if not self.gpu_benchmark.is_available():
+                    return {
+                        "available": False,
+                        "message": "No GPU or GPU libraries available"
+                    }
+                return self.gpu_benchmark.get_gpu_info(device_id)
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
 

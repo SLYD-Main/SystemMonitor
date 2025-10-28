@@ -21,6 +21,7 @@ from src.monitors.disk import DiskMonitor
 from src.monitors.network import NetworkMonitor
 from src.monitors.gpu import GPUMonitor
 from src.monitors.speedtest import SpeedTestMonitor
+from src.monitors.gpu_benchmark import GPUBenchmark
 
 
 @click.group()
@@ -291,6 +292,168 @@ def speedtest(format, server_id):
 
 
 @cli.command()
+@click.option('--device-id', '-d', default=0, type=int, help='GPU device ID')
+@click.option('--test', '-t', type=click.Choice(['info', 'memory', 'compute', 'stress', 'full']),
+              default='full', help='Type of benchmark to run')
+@click.option('--format', '-f', type=click.Choice(['json', 'table']), default='table',
+              help='Output format')
+@click.option('--duration', default=10, type=int, help='Stress test duration in seconds')
+def gpu_benchmark(device_id, test, format, duration):
+    """Run GPU benchmark tests."""
+    try:
+        benchmark = GPUBenchmark()
+
+        if not benchmark.is_available():
+            click.echo("Error: No GPU or GPU libraries available", err=True)
+            click.echo("\nTo enable GPU benchmarks:")
+            click.echo("1. Install PyTorch with CUDA: pip install torch torchvision")
+            click.echo("2. Or install pynvml: pip install pynvml")
+            return
+
+        if not benchmark.torch_available and test != 'info':
+            click.echo("Warning: PyTorch with CUDA not available", err=True)
+            click.echo("Only GPU info is available. Install PyTorch for compute benchmarks.")
+            test = 'info'
+
+        # Run selected benchmark
+        if test == 'info':
+            result = benchmark.get_gpu_info(device_id)
+        elif test == 'memory':
+            click.echo(f"Running memory bandwidth benchmark on GPU {device_id}...")
+            result = benchmark.benchmark_memory_bandwidth(device_id)
+        elif test == 'compute':
+            click.echo(f"Running compute performance benchmark on GPU {device_id}...")
+            result = benchmark.benchmark_compute_performance(device_id)
+        elif test == 'stress':
+            click.echo(f"Running stress test on GPU {device_id} for {duration} seconds...")
+            result = benchmark.stress_test(device_id, duration_seconds=duration)
+        else:  # full
+            click.echo(f"Running full benchmark suite on GPU {device_id}...")
+            click.echo("This may take 30-60 seconds...\n")
+            result = benchmark.run_full_benchmark(device_id)
+
+        # Output results
+        if format == 'json':
+            click.echo(json.dumps(result, indent=2, default=str))
+        else:
+            _print_benchmark_results(result, test)
+
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        import traceback
+        traceback.print_exc()
+
+
+def _print_benchmark_results(result: dict, test_type: str):
+    """Print benchmark results in table format."""
+    if 'error' in result:
+        click.echo(f"Error: {result['error']}", err=True)
+        if 'message' in result:
+            click.echo(result['message'])
+        return
+
+    click.echo("\n" + "=" * 70)
+    click.echo("GPU Benchmark Results")
+    click.echo("=" * 70)
+
+    # GPU Info
+    if 'gpu_info' in result:
+        info = result['gpu_info']
+        click.echo(f"\nGPU: {info.get('name', 'Unknown')}")
+        if 'total_memory_gb' in info:
+            click.echo(f"Memory: {info['total_memory_gb']:.2f} GB")
+        if 'compute_capability' in info:
+            click.echo(f"Compute Capability: {info['compute_capability']}")
+        if 'multi_processor_count' in info:
+            click.echo(f"Multiprocessors: {info['multi_processor_count']}")
+
+    # Info only
+    if test_type == 'info':
+        click.echo(f"\nDevice ID: {result.get('device_id', 0)}")
+        click.echo(f"Name: {result.get('name', 'Unknown')}")
+        if 'total_memory_gb' in result:
+            click.echo(f"Total Memory: {result['total_memory_gb']:.2f} GB")
+        if 'compute_capability' in result:
+            click.echo(f"Compute Capability: {result['compute_capability']}")
+        click.echo("=" * 70)
+        return
+
+    # Memory Bandwidth
+    if 'benchmarks' in result and 'memory_bandwidth' in result['benchmarks']:
+        mem = result['benchmarks']['memory_bandwidth']
+        if 'tests' in mem:
+            click.echo("\nMemory Bandwidth:")
+            if 'host_to_device' in mem['tests']:
+                h2d = mem['tests']['host_to_device']
+                click.echo(f"  Host -> Device: {h2d['bandwidth_gb_per_sec']:.2f} GB/s")
+            if 'device_to_host' in mem['tests']:
+                d2h = mem['tests']['device_to_host']
+                click.echo(f"  Device -> Host: {d2h['bandwidth_gb_per_sec']:.2f} GB/s")
+            if 'device_to_device' in mem['tests']:
+                d2d = mem['tests']['device_to_device']
+                click.echo(f"  Device -> Device: {d2d['bandwidth_gb_per_sec']:.2f} GB/s")
+    elif test_type == 'memory' and 'tests' in result:
+        click.echo("\nMemory Bandwidth:")
+        if 'host_to_device' in result['tests']:
+            h2d = result['tests']['host_to_device']
+            click.echo(f"  Host -> Device: {h2d['bandwidth_gb_per_sec']:.2f} GB/s")
+        if 'device_to_host' in result['tests']:
+            d2h = result['tests']['device_to_host']
+            click.echo(f"  Device -> Host: {d2h['bandwidth_gb_per_sec']:.2f} GB/s")
+        if 'device_to_device' in result['tests']:
+            d2d = result['tests']['device_to_device']
+            click.echo(f"  Device -> Device: {d2d['bandwidth_gb_per_sec']:.2f} GB/s")
+
+    # Compute Performance
+    if 'benchmarks' in result and 'compute_performance' in result['benchmarks']:
+        compute = result['benchmarks']['compute_performance']
+        if 'operations' in compute:
+            click.echo("\nCompute Performance:")
+            if 'matmul_fp32' in compute['operations']:
+                matmul = compute['operations']['matmul_fp32']
+                click.echo(f"  Matrix Multiply (FP32): {matmul['tflops']:.2f} TFLOPS")
+                click.echo(f"  Average Time: {matmul['avg_time_seconds']*1000:.2f} ms")
+    elif test_type == 'compute' and 'operations' in result:
+        click.echo("\nCompute Performance:")
+        if 'matmul_fp32' in result['operations']:
+            matmul = result['operations']['matmul_fp32']
+            click.echo(f"  Matrix Multiply (FP32): {matmul['tflops']:.2f} TFLOPS")
+            click.echo(f"  Average Time: {matmul['avg_time_seconds']*1000:.2f} ms")
+
+    # Stress Test
+    if 'benchmarks' in result and 'stress_test' in result['benchmarks']:
+        stress = result['benchmarks']['stress_test']
+        if 'statistics' in stress:
+            click.echo("\nStress Test Results:")
+            stats = stress['statistics']
+            click.echo(f"  Iterations: {stats['iterations']}")
+            if 'temperature' in stats:
+                temp = stats['temperature']
+                click.echo(f"  Temperature: Min={temp['min']}°C, Max={temp['max']}°C, Avg={temp['avg']:.1f}°C")
+            if stats.get('power'):
+                power = stats['power']
+                click.echo(f"  Power: Min={power['min']:.1f}W, Max={power['max']:.1f}W, Avg={power['avg']:.1f}W")
+            if stats.get('utilization'):
+                util = stats['utilization']
+                click.echo(f"  Utilization: Min={util['min']}%, Max={util['max']}%, Avg={util['avg']:.1f}%")
+    elif test_type == 'stress' and 'statistics' in result:
+        click.echo("\nStress Test Results:")
+        stats = result['statistics']
+        click.echo(f"  Iterations: {stats['iterations']}")
+        if 'temperature' in stats:
+            temp = stats['temperature']
+            click.echo(f"  Temperature: Min={temp['min']}°C, Max={temp['max']}°C, Avg={temp['avg']:.1f}°C")
+        if stats.get('power'):
+            power = stats['power']
+            click.echo(f"  Power: Min={power['min']:.1f}W, Max={power['max']:.1f}W, Avg={power['avg']:.1f}W")
+        if stats.get('utilization'):
+            util = stats['utilization']
+            click.echo(f"  Utilization: Min={util['min']}%, Max={util['max']}%, Avg={util['avg']:.1f}%")
+
+    click.echo("=" * 70)
+
+
+@cli.command()
 def info():
     """Display system information and available monitors."""
     try:
@@ -319,13 +482,14 @@ def info():
             click.echo("  - GPU (utilization, memory, temperature)")
 
         click.echo("\nAvailable Commands:")
-        click.echo("  dashboard  - Real-time monitoring dashboard")
-        click.echo("  snapshot   - One-time system snapshot")
-        click.echo("  api        - Start REST API server")
-        click.echo("  speedtest  - Run internet speed test")
-        click.echo("  export     - Export current snapshot")
-        click.echo("  history    - View historical data")
-        click.echo("  alerts     - Check system alerts")
+        click.echo("  dashboard     - Real-time monitoring dashboard")
+        click.echo("  snapshot      - One-time system snapshot")
+        click.echo("  api           - Start REST API server")
+        click.echo("  speedtest     - Run internet speed test")
+        click.echo("  gpu-benchmark - Run GPU performance benchmarks")
+        click.echo("  export        - Export current snapshot")
+        click.echo("  history       - View historical data")
+        click.echo("  alerts        - Check system alerts")
 
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
