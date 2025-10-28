@@ -1,0 +1,437 @@
+# System Monitor Deployment Guide
+
+This guide covers deploying System Monitor on cloud instances using cloud-init or manual installation.
+
+## Table of Contents
+- [Cloud-Init Deployment](#cloud-init-deployment)
+- [Manual Installation](#manual-installation)
+- [Service Management](#service-management)
+- [GPU Support](#gpu-support)
+- [Configuration](#configuration)
+- [Troubleshooting](#troubleshooting)
+
+## Cloud-Init Deployment
+
+Cloud-init is the industry standard method for cloud instance initialization. Use this for AWS EC2, Google Cloud, Azure, DigitalOcean, and other cloud providers.
+
+### AWS EC2
+
+**1. Create EC2 Instance with Cloud-Init:**
+
+```bash
+# Using AWS CLI
+aws ec2 run-instances \
+    --image-id ami-xxxxxxxxx \
+    --instance-type t3.medium \
+    --key-name your-key \
+    --security-group-ids sg-xxxxxxxxx \
+    --user-data file://cloud-init.yaml \
+    --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=SystemMonitor}]'
+```
+
+**2. Via AWS Console:**
+- Launch new EC2 instance
+- Select Ubuntu 22.04 LTS AMI
+- Under "Advanced Details" → "User data", paste contents of `cloud-init.yaml`
+- Configure security group to allow port 8000
+- Launch instance
+
+### Google Cloud Platform
+
+```bash
+# Create instance with cloud-init
+gcloud compute instances create system-monitor \
+    --image-family=ubuntu-2204-lts \
+    --image-project=ubuntu-os-cloud \
+    --machine-type=n1-standard-2 \
+    --metadata-from-file user-data=cloud-init.yaml \
+    --tags=http-server
+```
+
+### Azure
+
+```bash
+# Create VM with cloud-init
+az vm create \
+    --resource-group myResourceGroup \
+    --name system-monitor \
+    --image UbuntuLTS \
+    --size Standard_B2s \
+    --custom-data cloud-init.yaml \
+    --generate-ssh-keys
+```
+
+### DigitalOcean
+
+```bash
+# Create droplet with cloud-init
+doctl compute droplet create system-monitor \
+    --image ubuntu-22-04-x64 \
+    --size s-2vcpu-4gb \
+    --region nyc1 \
+    --user-data-file cloud-init.yaml
+```
+
+### What Cloud-Init Does
+
+1. Updates system packages
+2. Installs required dependencies
+3. Clones the repository from GitHub
+4. Creates Python virtual environment
+5. Installs Python packages
+6. Creates systemd service
+7. Starts API server automatically
+8. Sets up log rotation
+
+## Manual Installation
+
+For bare metal servers or manual deployments:
+
+### Quick Install
+
+```bash
+# Download and run installation script
+curl -fsSL https://raw.githubusercontent.com/SLYD-Main/SystemMonitor/master/install.sh | sudo bash
+```
+
+### Step-by-Step Installation
+
+```bash
+# 1. Clone repository
+sudo git clone https://github.com/SLYD-Main/SystemMonitor.git /opt/SystemMonitor
+cd /opt/SystemMonitor
+
+# 2. Make install script executable
+sudo chmod +x install.sh
+
+# 3. Run installation
+sudo ./install.sh
+```
+
+The script will:
+- Install system dependencies
+- Create virtual environment
+- Install Python packages
+- Set up systemd service
+- Start the API server
+- Optionally install NVIDIA drivers
+
+## Service Management
+
+### Systemd Commands
+
+```bash
+# Check status
+sudo systemctl status system-monitor
+
+# Start service
+sudo systemctl start system-monitor
+
+# Stop service
+sudo systemctl stop system-monitor
+
+# Restart service
+sudo systemctl restart system-monitor
+
+# Enable auto-start on boot
+sudo systemctl enable system-monitor
+
+# Disable auto-start
+sudo systemctl disable system-monitor
+
+# View logs (follow mode)
+sudo journalctl -u system-monitor -f
+
+# View last 100 lines
+sudo journalctl -u system-monitor -n 100
+
+# View logs since boot
+sudo journalctl -u system-monitor -b
+```
+
+### Service Configuration
+
+Edit service file:
+```bash
+sudo systemctl edit --full system-monitor.service
+```
+
+After editing, reload:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart system-monitor
+```
+
+## GPU Support
+
+### NVIDIA GPU Setup
+
+**Option 1: During cloud-init (recommended)**
+
+Edit `cloud-init.yaml` and uncomment GPU driver installation:
+```yaml
+runcmd:
+  - apt-get install -y ubuntu-drivers-common
+  - ubuntu-drivers autoinstall
+  - reboot
+```
+
+**Option 2: After installation**
+
+```bash
+# Install drivers
+sudo apt-get install -y ubuntu-drivers-common
+sudo ubuntu-drivers autoinstall
+
+# Reboot
+sudo reboot
+
+# Verify installation
+nvidia-smi
+
+# Install PyTorch for GPU benchmarks
+cd /opt/SystemMonitor
+source venv/bin/activate
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+```
+
+### Verify GPU Support
+
+```bash
+cd /opt/SystemMonitor
+source venv/bin/activate
+
+# Check GPU info
+python main.py gpu-benchmark --test info
+
+# Run full benchmark
+python main.py gpu-benchmark --test full
+```
+
+## Configuration
+
+### Edit Configuration
+
+```bash
+sudo nano /opt/SystemMonitor/config.yaml
+```
+
+### Key Configuration Options
+
+```yaml
+# API settings
+api:
+  host: "0.0.0.0"  # Listen on all interfaces
+  port: 8000        # API port
+  enable_cors: true
+
+# Alert thresholds
+thresholds:
+  cpu:
+    warning: 70
+    critical: 90
+  memory:
+    warning: 75
+    critical: 90
+
+# Historical data
+history:
+  enabled: true
+  retention_hours: 24
+  interval_seconds: 5
+```
+
+After editing, restart service:
+```bash
+sudo systemctl restart system-monitor
+```
+
+## Firewall Configuration
+
+### UFW (Ubuntu Firewall)
+
+```bash
+# Allow API port
+sudo ufw allow 8000/tcp
+
+# Enable firewall
+sudo ufw enable
+
+# Check status
+sudo ufw status
+```
+
+### AWS Security Group
+
+Allow inbound traffic on port 8000:
+```
+Type: Custom TCP
+Port Range: 8000
+Source: Your IP or 0.0.0.0/0 (caution: public access)
+```
+
+### Cloud Provider Firewalls
+
+- **GCP**: Create firewall rule for port 8000
+- **Azure**: Add inbound rule to Network Security Group
+- **DigitalOcean**: Configure Cloud Firewall
+
+## API Access
+
+Once deployed, access the API at:
+```
+http://your-instance-ip:8000
+```
+
+Interactive documentation:
+```
+http://your-instance-ip:8000/docs
+```
+
+## Troubleshooting
+
+### Service Won't Start
+
+```bash
+# Check service status
+sudo systemctl status system-monitor
+
+# View detailed logs
+sudo journalctl -u system-monitor -n 50 --no-pager
+
+# Check if port is in use
+sudo netstat -tlnp | grep 8000
+
+# Verify Python dependencies
+cd /opt/SystemMonitor
+source venv/bin/activate
+pip list
+```
+
+### Permission Issues
+
+```bash
+# Fix ownership
+sudo chown -R sysmonitor:sysmonitor /opt/SystemMonitor
+
+# Restart service
+sudo systemctl restart system-monitor
+```
+
+### Can't Access API
+
+```bash
+# Check if service is running
+sudo systemctl status system-monitor
+
+# Check if port is listening
+sudo ss -tlnp | grep 8000
+
+# Test locally
+curl http://localhost:8000
+
+# Check firewall
+sudo ufw status
+```
+
+### GPU Not Detected
+
+```bash
+# Verify NVIDIA drivers
+nvidia-smi
+
+# If not installed
+sudo ubuntu-drivers autoinstall
+sudo reboot
+
+# Check PyTorch CUDA
+python -c "import torch; print(torch.cuda.is_available())"
+```
+
+### High Memory Usage
+
+```bash
+# Check resource usage
+top
+htop
+
+# Adjust history retention in config.yaml
+history:
+  retention_hours: 12  # Reduce from 24
+  interval_seconds: 10  # Increase from 5
+
+# Restart service
+sudo systemctl restart system-monitor
+```
+
+## Updating the Application
+
+```bash
+# Stop service
+sudo systemctl stop system-monitor
+
+# Pull latest code
+cd /opt/SystemMonitor
+sudo -u sysmonitor git pull
+
+# Update dependencies
+sudo -u sysmonitor bash -c "source venv/bin/activate && pip install -r requirements.txt"
+
+# Restart service
+sudo systemctl start system-monitor
+```
+
+## Uninstallation
+
+```bash
+# Stop and disable service
+sudo systemctl stop system-monitor
+sudo systemctl disable system-monitor
+
+# Remove service file
+sudo rm /etc/systemd/system/system-monitor.service
+sudo systemctl daemon-reload
+
+# Remove installation
+sudo rm -rf /opt/SystemMonitor
+
+# Remove service user (optional)
+sudo userdel sysmonitor
+```
+
+## Production Best Practices
+
+1. **Use HTTPS**: Put behind nginx/Apache with SSL
+2. **Authentication**: Implement API key authentication
+3. **Monitoring**: Set up monitoring for the monitor!
+4. **Backups**: Backup config.yaml and database
+5. **Log Rotation**: Configure logrotate
+6. **Resource Limits**: Set memory/CPU limits in systemd
+7. **Health Checks**: Monitor `/health` endpoint
+8. **Updates**: Regularly update dependencies
+
+## Example Nginx Reverse Proxy
+
+```nginx
+server {
+    listen 80;
+    server_name monitor.yourdomain.com;
+
+    location / {
+        proxy_pass http://localhost:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+## Support
+
+For issues or questions:
+- GitHub Issues: https://github.com/SLYD-Main/SystemMonitor/issues
+- Documentation: README.md
+
+## License
+
+See LICENSE file in repository.

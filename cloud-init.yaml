@@ -1,0 +1,109 @@
+#cloud-config
+# Cloud-init configuration for System Monitor deployment
+# This script sets up the System Monitor on a fresh cloud instance
+
+# Update package database on first boot
+package_update: true
+package_upgrade: true
+
+# Install required system packages
+packages:
+  - python3
+  - python3-pip
+  - python3-venv
+  - git
+  - curl
+  - build-essential
+  - python3-dev
+
+# Create system user for running the service
+users:
+  - name: sysmonitor
+    groups: sudo
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+
+# Run commands on first boot
+runcmd:
+  # Clone repository
+  - cd /opt && git clone https://github.com/SLYD-Main/SystemMonitor.git
+
+  # Create virtual environment
+  - cd /opt/SystemMonitor && python3 -m venv venv
+
+  # Install Python dependencies
+  - cd /opt/SystemMonitor && venv/bin/pip install --upgrade pip
+  - cd /opt/SystemMonitor && venv/bin/pip install -r requirements.txt
+
+  # Create necessary directories
+  - mkdir -p /opt/SystemMonitor/exports
+
+  # Set ownership
+  - chown -R sysmonitor:sysmonitor /opt/SystemMonitor
+
+  # Create systemd service file
+  - |
+    cat > /etc/systemd/system/system-monitor.service <<'EOF'
+    [Unit]
+    Description=System Monitor API Service
+    After=network.target
+
+    [Service]
+    Type=simple
+    User=sysmonitor
+    WorkingDirectory=/opt/SystemMonitor
+    Environment="PATH=/opt/SystemMonitor/venv/bin"
+    ExecStart=/opt/SystemMonitor/venv/bin/python main.py api --enable-history
+    Restart=always
+    RestartSec=10
+    StandardOutput=journal
+    StandardError=journal
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+
+  # Reload systemd and enable service
+  - systemctl daemon-reload
+  - systemctl enable system-monitor.service
+  - systemctl start system-monitor.service
+
+  # Wait for service to start
+  - sleep 5
+
+  # Display service status
+  - systemctl status system-monitor.service --no-pager || true
+
+# Optional: Install NVIDIA drivers for GPU support
+# Uncomment the following lines if you need GPU monitoring/benchmarking
+# runcmd:
+#   - apt-get install -y ubuntu-drivers-common
+#   - ubuntu-drivers autoinstall
+#   - reboot
+
+final_message: |
+  ========================================
+  System Monitor Installation Complete!
+  ========================================
+
+  API Server: http://localhost:8000
+  API Docs: http://localhost:8000/docs
+
+  Service Status:
+    sudo systemctl status system-monitor
+
+  View Logs:
+    sudo journalctl -u system-monitor -f
+
+  CLI Commands:
+    cd /opt/SystemMonitor
+    source venv/bin/activate
+    python main.py --help
+
+  Configuration:
+    /opt/SystemMonitor/config.yaml
+
+  For GPU support, uncomment NVIDIA driver
+  installation in cloud-init.yaml and reboot.
+
+  ========================================
