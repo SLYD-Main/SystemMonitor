@@ -70,20 +70,31 @@ print_msg "Installing build dependencies..."
 apt-get update -qq
 apt-get install -y -qq git make wget
 
+# Remove old system Go if present (causes conflicts)
+if dpkg -l | grep -q golang-go; then
+    print_msg "Removing old system golang-go package..."
+    apt-get purge -y -qq golang-go golang-1.* 2>/dev/null || true
+fi
+
 # Install Go (required version for building DCGM exporter)
-if ! command -v go &> /dev/null || ! go version | grep -q "go${GO_VERSION}"; then
+export PATH=/usr/local/go/bin:$PATH
+if ! /usr/local/go/bin/go version 2>/dev/null | grep -q "go${GO_VERSION}"; then
     print_msg "Installing Go ${GO_VERSION}..."
     cd /tmp
     wget -q https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz
     rm -rf /usr/local/go
     tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz
     rm go${GO_VERSION}.linux-amd64.tar.gz
-    export PATH=$PATH:/usr/local/go/bin
-    echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
 else
-    print_info "Go already installed: $(go version)"
-    export PATH=$PATH:/usr/local/go/bin
+    print_info "Go ${GO_VERSION} already installed"
 fi
+
+# Ensure Go is in PATH (priority over system Go)
+export PATH=/usr/local/go/bin:$PATH
+export GOPATH=$HOME/go
+
+# Verify correct Go version
+print_info "Using Go version: $(/usr/local/go/bin/go version)"
 
 # Create installation directory
 mkdir -p "$INSTALL_DIR"
@@ -120,9 +131,11 @@ fi
 
 # Build the exporter
 print_msg "Building DCGM exporter (this may take a few minutes)..."
-export PATH=$PATH:/usr/local/go/bin
-export GOPATH=$HOME/go
-make binary
+# Use explicit Go binary path to ensure correct version
+cd cmd/dcgm-exporter
+/usr/local/go/bin/go build -ldflags "-X main.BuildVersion=${DCGM_EXPORTER_VERSION}"
+cd ../..
+mv cmd/dcgm-exporter/dcgm-exporter .
 
 # Verify binary was created
 if [ ! -f "dcgm-exporter" ]; then
