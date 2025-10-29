@@ -74,23 +74,82 @@ doctl compute droplet create system-monitor \
 
 ### What Cloud-Init Does
 
+The cloud-init configuration uses the bootstrap script to automate deployment:
+
 1. Updates system packages
-2. Installs required dependencies
-3. Clones the repository from GitHub
-4. Creates Python virtual environment
-5. Installs Python packages
-6. Creates systemd service
-7. Starts API server automatically
-8. Sets up log rotation
+2. Installs required dependencies (via packages directive)
+3. Downloads and executes bootstrap.sh from GitHub
+4. Bootstrap script handles:
+   - Cloning the repository
+   - Creating Python virtual environment
+   - Installing Python packages
+   - Creating systemd service
+   - Starting API server automatically
+
+### Cloud-Init Customization
+
+You can customize the deployment by modifying the runcmd in cloud-init.yaml:
+
+```yaml
+runcmd:
+  - |
+    curl -fsSL https://raw.githubusercontent.com/SLYD-Main/SystemMonitor/master/bootstrap.sh \
+    | bash -s -- \
+      --non-interactive \
+      --api-port 8080 \
+      --enable-history \
+      --timezone America/New_York \
+      --install-gpu-drivers
+```
+
+For GPU support:
+```yaml
+runcmd:
+  - |
+    curl -fsSL https://raw.githubusercontent.com/SLYD-Main/SystemMonitor/master/bootstrap.sh \
+    | bash -s -- --non-interactive --enable-history --install-gpu-drivers
+```
 
 ## Manual Installation
 
 For bare metal servers or manual deployments:
 
-### Quick Install
+### Quick Install (Recommended)
+
+The bootstrap script supports customization via command-line arguments:
 
 ```bash
-# Download and run installation script
+# Simple installation with defaults
+curl -fsSL https://raw.githubusercontent.com/SLYD-Main/SystemMonitor/master/bootstrap.sh | sudo bash
+
+# Custom installation with options
+curl -fsSL https://raw.githubusercontent.com/SLYD-Main/SystemMonitor/master/bootstrap.sh \
+| sudo bash -s -- \
+  --non-interactive \
+  --install-dir /opt/SystemMonitor \
+  --api-port 8000 \
+  --enable-history \
+  --timezone America/New_York \
+  --install-gpu-drivers
+```
+
+#### Bootstrap Script Options
+
+- `--install-dir DIR` - Installation directory (default: /opt/SystemMonitor)
+- `--api-port PORT` - API server port (default: 8000)
+- `--enable-history` - Enable historical data logging (default: true)
+- `--disable-history` - Disable historical data logging
+- `--service-user USER` - Service user name (default: sysmonitor)
+- `--repo-url URL` - GitHub repository URL
+- `--repo-branch BRANCH` - Git branch to use (default: master)
+- `--timezone TZ` - Set system timezone (e.g., America/New_York)
+- `--install-gpu-drivers` - Install NVIDIA GPU drivers
+- `--non-interactive` - Run without interactive prompts
+
+### Alternative: Interactive Installer
+
+```bash
+# Download and run interactive installation script
 curl -fsSL https://raw.githubusercontent.com/SLYD-Main/SystemMonitor/master/install.sh | sudo bash
 ```
 
@@ -101,11 +160,11 @@ curl -fsSL https://raw.githubusercontent.com/SLYD-Main/SystemMonitor/master/inst
 sudo git clone https://github.com/SLYD-Main/SystemMonitor.git /opt/SystemMonitor
 cd /opt/SystemMonitor
 
-# 2. Make install script executable
-sudo chmod +x install.sh
+# 2. Make bootstrap script executable
+sudo chmod +x bootstrap.sh
 
 # 3. Run installation
-sudo ./install.sh
+sudo ./bootstrap.sh --enable-history
 ```
 
 The script will:
