@@ -91,13 +91,21 @@ class PrometheusExporter:
             # Overall CPU usage
             cpu_data = self.cpu_monitor.get_usage(interval=0.1, per_cpu=True)
 
-            if 'overall' in cpu_data:
+            # Handle usage_percent field
+            if 'usage_percent' in cpu_data:
+                self.cpu_percent.labels(cpu='overall').set(cpu_data['usage_percent'])
+            elif 'overall' in cpu_data:
                 self.cpu_percent.labels(cpu='overall').set(cpu_data['overall'])
 
             # Per-CPU usage
-            if 'per_cpu' in cpu_data:
+            if 'per_cpu_percent' in cpu_data and cpu_data['per_cpu_percent']:
+                for i, percent in enumerate(cpu_data['per_cpu_percent']):
+                    if percent is not None:
+                        self.cpu_percent.labels(cpu=f'cpu{i}').set(percent)
+            elif 'per_cpu' in cpu_data and cpu_data['per_cpu']:
                 for i, percent in enumerate(cpu_data['per_cpu']):
-                    self.cpu_percent.labels(cpu=f'cpu{i}').set(percent)
+                    if percent is not None:
+                        self.cpu_percent.labels(cpu=f'cpu{i}').set(percent)
 
             # CPU stats
             stats = self.cpu_monitor.get_stats()
