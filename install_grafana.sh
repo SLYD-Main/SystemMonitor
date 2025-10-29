@@ -233,4 +233,24 @@ print_warning "Make sure your System Monitor API is running on port 8000"
 print_warning "Prometheus will start scraping metrics automatically"
 echo ""
 
+# Ask if user wants to install DCGM Exporter
+if command -v nvidia-smi &> /dev/null; then
+    print_info "NVIDIA GPU detected!"
+    echo ""
+    echo "Would you like to install NVIDIA DCGM Exporter for advanced GPU metrics?"
+    echo "  (Provides comprehensive GPU monitoring including NVLink, PCIe, ECC errors, etc.)"
+    echo ""
+    read -p "Install DCGM Exporter? [y/N]: " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        print_msg "Installing NVIDIA DCGM Exporter..."
+        if [ -f "${INSTALL_DIR}/install_dcgm_exporter.sh" ]; then
+            bash "${INSTALL_DIR}/install_dcgm_exporter.sh"
+        else
+            print_warning "DCGM installer not found. You can install it manually later:"
+            print_info "  sudo ${INSTALL_DIR}/install_dcgm_exporter.sh"
+        fi
+    fi
+fi
+
 exit 0

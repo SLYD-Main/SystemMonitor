@@ -33,8 +33,10 @@ NON_INTERACTIVE="false"
 INSTALL_GPU_DRIVERS="false"
 INSTALL_PYTORCH="false"
 INSTALL_GRAFANA="false"
+INSTALL_DCGM="false"
 PROMETHEUS_PORT="9090"
 GRAFANA_PORT="3000"
+DCGM_PORT="9400"
 TIMEZONE=""
 REPO_BRANCH="master"
 
@@ -75,8 +77,10 @@ Options:
     --install-gpu-drivers     Install NVIDIA GPU drivers
     --install-pytorch         Install PyTorch with CUDA support for GPU benchmarks
     --install-grafana         Install Grafana and Prometheus for monitoring dashboards
+    --install-dcgm            Install NVIDIA DCGM Exporter for advanced GPU metrics
     --prometheus-port PORT    Prometheus port (default: 9090)
     --grafana-port PORT       Grafana port (default: 3000)
+    --dcgm-port PORT          DCGM Exporter port (default: 9400)
     --non-interactive         Run without interactive prompts
     -h, --help                Show this help message
 
@@ -84,7 +88,7 @@ Examples:
     # Simple installation
     curl -fsSL https://raw.githubusercontent.com/SLYD-Main/SystemMonitor/master/bootstrap.sh | sudo bash
 
-    # Full installation with GPU support and Grafana
+    # Full installation with GPU support, Grafana, and DCGM
     curl -fsSL https://raw.githubusercontent.com/SLYD-Main/SystemMonitor/master/bootstrap.sh \\
     | sudo bash -s -- \\
       --non-interactive \\
@@ -94,7 +98,8 @@ Examples:
       --timezone America/New_York \\
       --install-gpu-drivers \\
       --install-pytorch \\
-      --install-grafana
+      --install-grafana \\
+      --install-dcgm
 
 EOF
     exit 0
@@ -147,12 +152,20 @@ while [[ $# -gt 0 ]]; do
             INSTALL_GRAFANA="true"
             shift
             ;;
+        --install-dcgm)
+            INSTALL_DCGM="true"
+            shift
+            ;;
         --prometheus-port)
             PROMETHEUS_PORT="$2"
             shift 2
             ;;
         --grafana-port)
             GRAFANA_PORT="$2"
+            shift 2
+            ;;
+        --dcgm-port)
+            DCGM_PORT="$2"
             shift 2
             ;;
         --non-interactive)
@@ -192,6 +205,10 @@ print_info "  Grafana Dashboard: $INSTALL_GRAFANA"
 if [ "$INSTALL_GRAFANA" = "true" ]; then
     print_info "    - Prometheus Port: $PROMETHEUS_PORT"
     print_info "    - Grafana Port: $GRAFANA_PORT"
+fi
+print_info "  DCGM Exporter: $INSTALL_DCGM"
+if [ "$INSTALL_DCGM" = "true" ]; then
+    print_info "    - DCGM Port: $DCGM_PORT"
 fi
 if [ -n "$TIMEZONE" ]; then
     print_info "  Timezone: $TIMEZONE"
@@ -349,6 +366,25 @@ if [ "$INSTALL_GRAFANA" = "true" ]; then
         print_msg "Grafana and Prometheus installed successfully!"
     else
         print_error "Grafana installation failed. Check logs for details."
+    fi
+fi
+
+# Install DCGM Exporter if requested
+if [ "$INSTALL_DCGM" = "true" ]; then
+    print_msg "Installing NVIDIA DCGM Exporter..."
+
+    # Make install script executable
+    chmod +x "$INSTALL_DIR/install_dcgm_exporter.sh"
+
+    # Run DCGM installation script
+    export DCGM_PORT="$DCGM_PORT"
+
+    "$INSTALL_DIR/install_dcgm_exporter.sh"
+
+    if [ $? -eq 0 ]; then
+        print_msg "DCGM Exporter installed successfully!"
+    else
+        print_error "DCGM Exporter installation failed. Check logs for details."
     fi
 fi
 
