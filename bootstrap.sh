@@ -31,6 +31,7 @@ API_PORT="8000"
 ENABLE_HISTORY="true"
 NON_INTERACTIVE="false"
 INSTALL_GPU_DRIVERS="false"
+INSTALL_PYTORCH="false"
 TIMEZONE=""
 REPO_BRANCH="master"
 
@@ -69,6 +70,7 @@ Options:
     --repo-branch BRANCH      Git branch to use (default: master)
     --timezone TZ             Set system timezone (e.g., America/New_York)
     --install-gpu-drivers     Install NVIDIA GPU drivers
+    --install-pytorch         Install PyTorch with CUDA support for GPU benchmarks
     --non-interactive         Run without interactive prompts
     -h, --help                Show this help message
 
@@ -76,7 +78,7 @@ Examples:
     # Simple installation
     curl -fsSL https://raw.githubusercontent.com/SLYD-Main/SystemMonitor/master/bootstrap.sh | sudo bash
 
-    # Custom installation
+    # Custom installation with GPU support
     curl -fsSL https://raw.githubusercontent.com/SLYD-Main/SystemMonitor/master/bootstrap.sh \\
     | sudo bash -s -- \\
       --non-interactive \\
@@ -84,7 +86,8 @@ Examples:
       --api-port 8080 \\
       --enable-history \\
       --timezone America/New_York \\
-      --install-gpu-drivers
+      --install-gpu-drivers \\
+      --install-pytorch
 
 EOF
     exit 0
@@ -129,6 +132,10 @@ while [[ $# -gt 0 ]]; do
             INSTALL_GPU_DRIVERS="true"
             shift
             ;;
+        --install-pytorch)
+            INSTALL_PYTORCH="true"
+            shift
+            ;;
         --non-interactive)
             NON_INTERACTIVE="true"
             shift
@@ -161,6 +168,7 @@ print_info "  Service User: $SERVICE_USER"
 print_info "  API Port: $API_PORT"
 print_info "  History Logging: $ENABLE_HISTORY"
 print_info "  GPU Drivers: $INSTALL_GPU_DRIVERS"
+print_info "  PyTorch with CUDA: $INSTALL_PYTORCH"
 if [ -n "$TIMEZONE" ]; then
     print_info "  Timezone: $TIMEZONE"
 fi
@@ -225,6 +233,13 @@ sudo -u "$SERVICE_USER" python3 -m venv venv
 # Activate virtual environment and install dependencies
 print_msg "Installing Python dependencies (this may take a few minutes)..."
 sudo -u "$SERVICE_USER" bash -c "source venv/bin/activate && pip install -q --upgrade pip && pip install -q -r requirements.txt"
+
+# Install PyTorch with CUDA if requested
+if [ "$INSTALL_PYTORCH" = "true" ]; then
+    print_msg "Installing PyTorch with CUDA support (this may take several minutes)..."
+    sudo -u "$SERVICE_USER" bash -c "source venv/bin/activate && pip install -q torch torchvision --index-url https://download.pytorch.org/whl/cu121"
+    print_msg "PyTorch with CUDA installed successfully"
+fi
 
 # Create necessary directories
 print_msg "Creating directories..."

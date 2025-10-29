@@ -293,12 +293,13 @@ def speedtest(format, server_id):
 
 @cli.command()
 @click.option('--device-id', '-d', default=0, type=int, help='GPU device ID')
-@click.option('--test', '-t', type=click.Choice(['info', 'memory', 'compute', 'stress', 'full']),
+@click.option('--test', '-t', type=click.Choice(['info', 'memory', 'compute', 'stress', 'mlperf', 'resnet', 'bert', 'full']),
               default='full', help='Type of benchmark to run')
 @click.option('--format', '-f', type=click.Choice(['json', 'table']), default='table',
               help='Output format')
 @click.option('--duration', default=10, type=int, help='Stress test duration in seconds')
-def gpu_benchmark(device_id, test, format, duration):
+@click.option('--include-mlperf', is_flag=True, help='Include MLPerf benchmarks in full test')
+def gpu_benchmark(device_id, test, format, duration, include_mlperf):
     """Run GPU benchmark tests."""
     try:
         benchmark = GPUBenchmark()
@@ -327,10 +328,23 @@ def gpu_benchmark(device_id, test, format, duration):
         elif test == 'stress':
             click.echo(f"Running stress test on GPU {device_id} for {duration} seconds...")
             result = benchmark.stress_test(device_id, duration_seconds=duration)
+        elif test == 'resnet':
+            click.echo(f"Running ResNet-50 inference benchmark on GPU {device_id}...")
+            result = benchmark.benchmark_resnet_inference(device_id)
+        elif test == 'bert':
+            click.echo(f"Running BERT inference benchmark on GPU {device_id}...")
+            result = benchmark.benchmark_bert_inference(device_id)
+        elif test == 'mlperf':
+            click.echo(f"Running MLPerf benchmark suite on GPU {device_id}...")
+            click.echo("This may take several minutes...\n")
+            result = benchmark.benchmark_mlperf_suite(device_id)
         else:  # full
             click.echo(f"Running full benchmark suite on GPU {device_id}...")
-            click.echo("This may take 30-60 seconds...\n")
-            result = benchmark.run_full_benchmark(device_id)
+            if include_mlperf:
+                click.echo("Including MLPerf benchmarks - this may take several minutes...\n")
+            else:
+                click.echo("This may take 30-60 seconds...\n")
+            result = benchmark.run_full_benchmark(device_id, include_mlperf=include_mlperf)
 
         # Output results
         if format == 'json':
@@ -449,6 +463,58 @@ def _print_benchmark_results(result: dict, test_type: str):
         if stats.get('utilization'):
             util = stats['utilization']
             click.echo(f"  Utilization: Min={util['min']}%, Max={util['max']}%, Avg={util['avg']:.1f}%")
+
+    # MLPerf Benchmarks
+    if 'benchmarks' in result and 'mlperf' in result['benchmarks']:
+        mlperf = result['benchmarks']['mlperf']
+        if 'benchmarks' in mlperf:
+            click.echo("\nMLPerf Inference Benchmarks:")
+
+            # ResNet-50
+            if 'resnet50' in mlperf['benchmarks'] and 'metrics' in mlperf['benchmarks']['resnet50']:
+                resnet = mlperf['benchmarks']['resnet50']
+                click.echo(f"\n  ResNet-50 Inference:")
+                m = resnet['metrics']
+                click.echo(f"    Throughput: {m['throughput_images_per_sec']:.2f} images/sec")
+                click.echo(f"    Latency (avg): {m['avg_latency_ms']:.2f} ms")
+                click.echo(f"    Latency (p95): {m['p95_latency_ms']:.2f} ms")
+                click.echo(f"    Latency (p99): {m['p99_latency_ms']:.2f} ms")
+
+            # BERT
+            if 'bert' in mlperf['benchmarks'] and 'metrics' in mlperf['benchmarks']['bert']:
+                bert = mlperf['benchmarks']['bert']
+                click.echo(f"\n  BERT Inference:")
+                m = bert['metrics']
+                click.echo(f"    Throughput: {m['throughput_sequences_per_sec']:.2f} seq/sec")
+                click.echo(f"    Latency (avg): {m['avg_latency_ms']:.2f} ms")
+                click.echo(f"    Latency (p95): {m['p95_latency_ms']:.2f} ms")
+                click.echo(f"    Latency (p99): {m['p99_latency_ms']:.2f} ms")
+
+    # Individual MLPerf tests (resnet/bert)
+    if test_type == 'resnet' and 'metrics' in result:
+        click.echo("\nResNet-50 Inference Benchmark:")
+        m = result['metrics']
+        click.echo(f"  Model: {result.get('model', 'ResNet-50')}")
+        click.echo(f"  Batch Size: {result.get('batch_size', 'N/A')}")
+        click.echo(f"  Throughput: {m['throughput_images_per_sec']:.2f} images/sec")
+        click.echo(f"  Average Latency: {m['avg_latency_ms']:.2f} ms")
+        click.echo(f"  P50 Latency: {m['p50_latency_ms']:.2f} ms")
+        click.echo(f"  P95 Latency: {m['p95_latency_ms']:.2f} ms")
+        click.echo(f"  P99 Latency: {m['p99_latency_ms']:.2f} ms")
+        click.echo(f"  Total Images: {m['total_images']}")
+
+    if test_type == 'bert' and 'metrics' in result:
+        click.echo("\nBERT Inference Benchmark:")
+        m = result['metrics']
+        click.echo(f"  Model: {result.get('model', 'BERT')}")
+        click.echo(f"  Batch Size: {result.get('batch_size', 'N/A')}")
+        click.echo(f"  Sequence Length: {result.get('seq_length', 'N/A')}")
+        click.echo(f"  Throughput: {m['throughput_sequences_per_sec']:.2f} seq/sec")
+        click.echo(f"  Average Latency: {m['avg_latency_ms']:.2f} ms")
+        click.echo(f"  P50 Latency: {m['p50_latency_ms']:.2f} ms")
+        click.echo(f"  P95 Latency: {m['p95_latency_ms']:.2f} ms")
+        click.echo(f"  P99 Latency: {m['p99_latency_ms']:.2f} ms")
+        click.echo(f"  Total Sequences: {m['total_sequences']}")
 
     click.echo("=" * 70)
 

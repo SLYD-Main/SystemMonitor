@@ -26,10 +26,11 @@ users:
 # Run commands on first boot
 runcmd:
   - |
-    curl -fsSL https://raw.githubusercontent.com/SLYD-Main/SystemMonitor/master/bootstrap.sh | bash -s -- --non-interactive --enable-history
+    curl -fsSL https://raw.githubusercontent.com/SLYD-Main/SystemMonitor/master/bootstrap.sh | bash -s -- --non-interactive --enable-history --install-pytorch
 
 # Optional: Install NVIDIA drivers for GPU support
 # Modify the runcmd above to include: --install-gpu-drivers
+# For PyTorch with CUDA support, include: --install-pytorch
 
 final_message: |
   ========================================

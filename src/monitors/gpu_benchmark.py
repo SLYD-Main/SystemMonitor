@@ -1,4 +1,4 @@
-"""GPU benchmarking module."""
+"""GPU benchmarking module with MLPerf-style inference benchmarks."""
 import time
 import numpy as np
 from typing import Dict, List, Optional
@@ -354,12 +354,232 @@ class GPUBenchmark:
                 "device_id": device_id
             }
 
-    def run_full_benchmark(self, device_id: int = 0) -> Dict:
+    def benchmark_resnet_inference(self, device_id: int = 0, batch_size: int = 32, iterations: int = 100) -> Dict:
+        """
+        MLPerf-style ResNet-50 inference benchmark.
+
+        Args:
+            device_id: GPU device ID
+            batch_size: Batch size for inference
+            iterations: Number of inference iterations
+
+        Returns:
+            Dictionary with benchmark results
+        """
+        if not self.torch_available:
+            return {
+                "error": "PyTorch with CUDA not available",
+                "message": "Install torch and torchvision for MLPerf inference benchmarks"
+            }
+
+        try:
+            import torchvision.models as models
+        except ImportError:
+            return {
+                "error": "torchvision not available",
+                "message": "Install torchvision for ResNet benchmark: pip install torchvision"
+            }
+
+        try:
+            device = self.torch.device(f'cuda:{device_id}')
+
+            results = {
+                "model": "ResNet-50",
+                "device_id": device_id,
+                "timestamp": datetime.now().isoformat(),
+                "batch_size": batch_size,
+                "iterations": iterations
+            }
+
+            # Load ResNet-50 model
+            print(f"Loading ResNet-50 model...")
+            model = models.resnet50(pretrained=False)  # Use pretrained=False for faster loading
+            model = model.to(device)
+            model.eval()
+
+            # Create dummy input (ImageNet size: 224x224)
+            dummy_input = self.torch.randn(batch_size, 3, 224, 224, device=device)
+
+            # Warmup
+            with self.torch.no_grad():
+                for _ in range(10):
+                    _ = model(dummy_input)
+            self.torch.cuda.synchronize()
+
+            # Benchmark inference
+            latencies = []
+            with self.torch.no_grad():
+                for _ in range(iterations):
+                    start = time.time()
+                    _ = model(dummy_input)
+                    self.torch.cuda.synchronize()
+                    latencies.append(time.time() - start)
+
+            # Calculate metrics
+            latencies = np.array(latencies)
+            total_time = np.sum(latencies)
+            throughput = (iterations * batch_size) / total_time
+
+            results["metrics"] = {
+                "total_time_seconds": float(total_time),
+                "avg_latency_ms": float(np.mean(latencies) * 1000),
+                "min_latency_ms": float(np.min(latencies) * 1000),
+                "max_latency_ms": float(np.max(latencies) * 1000),
+                "p50_latency_ms": float(np.percentile(latencies, 50) * 1000),
+                "p95_latency_ms": float(np.percentile(latencies, 95) * 1000),
+                "p99_latency_ms": float(np.percentile(latencies, 99) * 1000),
+                "throughput_images_per_sec": float(throughput),
+                "total_images": iterations * batch_size
+            }
+
+            # Clean up
+            del model, dummy_input
+            self.torch.cuda.empty_cache()
+
+            return results
+
+        except Exception as e:
+            return {
+                "error": str(e),
+                "device_id": device_id
+            }
+
+    def benchmark_bert_inference(self, device_id: int = 0, batch_size: int = 8, seq_length: int = 128, iterations: int = 50) -> Dict:
+        """
+        MLPerf-style BERT inference benchmark.
+
+        Args:
+            device_id: GPU device ID
+            batch_size: Batch size for inference
+            seq_length: Sequence length
+            iterations: Number of inference iterations
+
+        Returns:
+            Dictionary with benchmark results
+        """
+        if not self.torch_available:
+            return {
+                "error": "PyTorch with CUDA not available",
+                "message": "Install torch for MLPerf inference benchmarks"
+            }
+
+        try:
+            device = self.torch.device(f'cuda:{device_id}')
+
+            results = {
+                "model": "BERT-like (Transformer)",
+                "device_id": device_id,
+                "timestamp": datetime.now().isoformat(),
+                "batch_size": batch_size,
+                "seq_length": seq_length,
+                "iterations": iterations
+            }
+
+            # Create a BERT-like transformer model
+            hidden_size = 768
+            num_heads = 12
+            num_layers = 12
+
+            # Simplified BERT-like architecture
+            encoder_layer = self.torch.nn.TransformerEncoderLayer(
+                d_model=hidden_size,
+                nhead=num_heads,
+                dim_feedforward=3072,
+                batch_first=True
+            )
+            model = self.torch.nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+            model = model.to(device)
+            model.eval()
+
+            # Create dummy input
+            dummy_input = self.torch.randn(batch_size, seq_length, hidden_size, device=device)
+
+            # Warmup
+            with self.torch.no_grad():
+                for _ in range(5):
+                    _ = model(dummy_input)
+            self.torch.cuda.synchronize()
+
+            # Benchmark inference
+            latencies = []
+            with self.torch.no_grad():
+                for _ in range(iterations):
+                    start = time.time()
+                    _ = model(dummy_input)
+                    self.torch.cuda.synchronize()
+                    latencies.append(time.time() - start)
+
+            # Calculate metrics
+            latencies = np.array(latencies)
+            total_time = np.sum(latencies)
+            throughput = (iterations * batch_size) / total_time
+
+            results["metrics"] = {
+                "total_time_seconds": float(total_time),
+                "avg_latency_ms": float(np.mean(latencies) * 1000),
+                "min_latency_ms": float(np.min(latencies) * 1000),
+                "max_latency_ms": float(np.max(latencies) * 1000),
+                "p50_latency_ms": float(np.percentile(latencies, 50) * 1000),
+                "p95_latency_ms": float(np.percentile(latencies, 95) * 1000),
+                "p99_latency_ms": float(np.percentile(latencies, 99) * 1000),
+                "throughput_sequences_per_sec": float(throughput),
+                "total_sequences": iterations * batch_size
+            }
+
+            # Clean up
+            del model, dummy_input
+            self.torch.cuda.empty_cache()
+
+            return results
+
+        except Exception as e:
+            return {
+                "error": str(e),
+                "device_id": device_id
+            }
+
+    def benchmark_mlperf_suite(self, device_id: int = 0) -> Dict:
+        """
+        Run MLPerf-style inference benchmark suite.
+
+        Args:
+            device_id: GPU device ID
+
+        Returns:
+            Dictionary with all MLPerf benchmark results
+        """
+        if not self.torch_available:
+            return {
+                "error": "PyTorch with CUDA not available",
+                "message": "Install torch for MLPerf benchmarks"
+            }
+
+        results = {
+            "timestamp": datetime.now().isoformat(),
+            "device_id": device_id,
+            "gpu_info": self.get_gpu_info(device_id),
+            "benchmarks": {}
+        }
+
+        print("Running MLPerf-style benchmarks...")
+
+        # ResNet-50 inference
+        print("1/2: ResNet-50 inference benchmark...")
+        results["benchmarks"]["resnet50"] = self.benchmark_resnet_inference(device_id)
+
+        # BERT inference
+        print("2/2: BERT inference benchmark...")
+        results["benchmarks"]["bert"] = self.benchmark_bert_inference(device_id)
+
+        return results
+
+    def run_full_benchmark(self, device_id: int = 0, include_mlperf: bool = False) -> Dict:
         """
         Run a comprehensive GPU benchmark suite.
 
         Args:
             device_id: GPU device ID
+            include_mlperf: Include MLPerf-style inference benchmarks
 
         Returns:
             Dictionary with all benchmark results
@@ -382,6 +602,9 @@ class GPUBenchmark:
             results["benchmarks"]["memory_bandwidth"] = self.benchmark_memory_bandwidth(device_id)
             results["benchmarks"]["compute_performance"] = self.benchmark_compute_performance(device_id)
             results["benchmarks"]["stress_test"] = self.stress_test(device_id, duration_seconds=5)
+
+            if include_mlperf:
+                results["benchmarks"]["mlperf"] = self.benchmark_mlperf_suite(device_id)
         else:
             results["message"] = "PyTorch with CUDA not available. Install torch for compute benchmarks."
 

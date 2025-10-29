@@ -235,8 +235,9 @@ class MonitoringAPI:
         @self.app.post("/api/gpu/benchmark")
         async def run_gpu_benchmark(
             device_id: int = Query(0, description="GPU device ID"),
-            test_type: str = Query("full", description="Benchmark type: info, memory, compute, stress, full"),
-            duration: int = Query(10, description="Stress test duration in seconds")
+            test_type: str = Query("full", description="Benchmark type: info, memory, compute, stress, resnet, bert, mlperf, full"),
+            duration: int = Query(10, description="Stress test duration in seconds"),
+            include_mlperf: bool = Query(False, description="Include MLPerf benchmarks in full test")
         ):
             """Run GPU benchmark tests."""
             try:
@@ -254,13 +255,108 @@ class MonitoringAPI:
                     result = self.gpu_benchmark.benchmark_compute_performance(device_id)
                 elif test_type == "stress":
                     result = self.gpu_benchmark.stress_test(device_id, duration_seconds=duration)
+                elif test_type == "resnet":
+                    result = self.gpu_benchmark.benchmark_resnet_inference(device_id)
+                elif test_type == "bert":
+                    result = self.gpu_benchmark.benchmark_bert_inference(device_id)
+                elif test_type == "mlperf":
+                    result = self.gpu_benchmark.benchmark_mlperf_suite(device_id)
                 elif test_type == "full":
-                    result = self.gpu_benchmark.run_full_benchmark(device_id)
+                    result = self.gpu_benchmark.run_full_benchmark(device_id, include_mlperf=include_mlperf)
                 else:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Invalid test_type. Must be one of: info, memory, compute, stress, full"
+                        detail=f"Invalid test_type. Must be one of: info, memory, compute, stress, resnet, bert, mlperf, full"
                     )
+
+                if 'error' in result:
+                    raise HTTPException(status_code=500, detail=result.get('error'))
+
+                return result
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.post("/api/gpu/benchmark/mlperf")
+        async def run_mlperf_benchmark(
+            device_id: int = Query(0, description="GPU device ID")
+        ):
+            """Run MLPerf-style inference benchmark suite."""
+            try:
+                if not self.gpu_benchmark.is_available():
+                    raise HTTPException(
+                        status_code=400,
+                        detail="No GPU or GPU libraries available"
+                    )
+
+                if not self.gpu_benchmark.torch_available:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="PyTorch with CUDA not available. Install torch and torchvision for MLPerf benchmarks."
+                    )
+
+                result = self.gpu_benchmark.benchmark_mlperf_suite(device_id)
+
+                if 'error' in result:
+                    raise HTTPException(status_code=500, detail=result.get('error'))
+
+                return result
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.post("/api/gpu/benchmark/resnet")
+        async def run_resnet_benchmark(
+            device_id: int = Query(0, description="GPU device ID"),
+            batch_size: int = Query(32, description="Batch size for inference"),
+            iterations: int = Query(100, description="Number of iterations")
+        ):
+            """Run ResNet-50 inference benchmark."""
+            try:
+                if not self.gpu_benchmark.torch_available:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="PyTorch with CUDA not available"
+                    )
+
+                result = self.gpu_benchmark.benchmark_resnet_inference(
+                    device_id=device_id,
+                    batch_size=batch_size,
+                    iterations=iterations
+                )
+
+                if 'error' in result:
+                    raise HTTPException(status_code=500, detail=result.get('error'))
+
+                return result
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.post("/api/gpu/benchmark/bert")
+        async def run_bert_benchmark(
+            device_id: int = Query(0, description="GPU device ID"),
+            batch_size: int = Query(8, description="Batch size for inference"),
+            seq_length: int = Query(128, description="Sequence length"),
+            iterations: int = Query(50, description="Number of iterations")
+        ):
+            """Run BERT inference benchmark."""
+            try:
+                if not self.gpu_benchmark.torch_available:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="PyTorch with CUDA not available"
+                    )
+
+                result = self.gpu_benchmark.benchmark_bert_inference(
+                    device_id=device_id,
+                    batch_size=batch_size,
+                    seq_length=seq_length,
+                    iterations=iterations
+                )
 
                 if 'error' in result:
                     raise HTTPException(status_code=500, detail=result.get('error'))
