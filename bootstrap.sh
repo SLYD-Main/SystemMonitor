@@ -198,12 +198,17 @@ else
 fi
 
 # Clone or update repository
-if [ -d "$INSTALL_DIR" ]; then
+if [ -d "$INSTALL_DIR/.git" ]; then
     print_warning "Installation directory exists. Updating..."
     cd "$INSTALL_DIR"
     sudo -u "$SERVICE_USER" git fetch origin
     sudo -u "$SERVICE_USER" git checkout "$REPO_BRANCH"
     sudo -u "$SERVICE_USER" git pull
+elif [ -d "$INSTALL_DIR" ]; then
+    print_warning "Installation directory exists but is not a git repository. Removing and cloning fresh..."
+    rm -rf "$INSTALL_DIR"
+    print_msg "Cloning repository..."
+    git clone -b "$REPO_BRANCH" "$REPO_URL" "$INSTALL_DIR"
 else
     print_msg "Cloning repository..."
     git clone -b "$REPO_BRANCH" "$REPO_URL" "$INSTALL_DIR"
