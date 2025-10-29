@@ -22,6 +22,7 @@ from src.monitors.network import NetworkMonitor
 from src.monitors.gpu import GPUMonitor
 from src.monitors.speedtest import SpeedTestMonitor
 from src.monitors.gpu_benchmark import GPUBenchmark
+from src.monitors.gpu_stress_benchmark import GPUStressBenchmark
 
 
 @click.group()
@@ -517,6 +518,77 @@ def _print_benchmark_results(result: dict, test_type: str):
         click.echo(f"  Total Sequences: {m['total_sequences']}")
 
     click.echo("=" * 70)
+
+
+@cli.command()
+@click.option('--device-id', '-d', default=0, type=int, help='GPU device ID')
+@click.option('--test', '-t',
+              type=click.Choice(['mixed-precision', 'memory-stress', 'sustained-load', 'multi-gpu', 'suite']),
+              default='suite', help='Type of stress test to run')
+@click.option('--suite-type', type=click.Choice(['quick', 'standard', 'comprehensive']),
+              default='standard', help='Benchmark suite type')
+@click.option('--duration', default=10, type=int, help='Test duration in minutes (for sustained-load)')
+@click.option('--intensity', type=click.Choice(['low', 'medium', 'high', 'extreme']),
+              default='high', help='Workload intensity')
+@click.option('--output-dir', '-o', default='./benchmark_results', help='Output directory for results')
+@click.option('--export', is_flag=True, help='Export results to JSON/CSV')
+def gpu_stress(device_id, test, suite_type, duration, intensity, output_dir, export):
+    """Run intensive GPU stress tests and benchmarks."""
+    try:
+        benchmark = GPUStressBenchmark()
+
+        if not benchmark.torch_available:
+            click.echo("Error: PyTorch with CUDA not available", err=True)
+            click.echo("\nTo enable GPU stress benchmarks:")
+            click.echo("  pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128")
+            return
+
+        result = None
+
+        if test == 'mixed-precision':
+            click.echo(f"Running mixed precision benchmark on GPU {device_id}...")
+            result = benchmark.benchmark_mixed_precision(device_id)
+
+        elif test == 'memory-stress':
+            click.echo(f"Running memory stress test on GPU {device_id}...")
+            click.echo("This will fill GPU memory and stress memory bandwidth...")
+            result = benchmark.benchmark_memory_stress(device_id, duration_seconds=duration*60)
+
+        elif test == 'sustained-load':
+            click.echo(f"Running {duration} minute sustained load test ({intensity} intensity)...")
+            click.echo("This will push GPU to maximum utilization...")
+            result = benchmark.benchmark_sustained_load(
+                device_id,
+                duration_minutes=duration,
+                workload_intensity=intensity
+            )
+
+        elif test == 'multi-gpu':
+            if benchmark.gpu_count < 2:
+                click.echo(f"Error: Only {benchmark.gpu_count} GPU(s) available", err=True)
+                return
+            click.echo(f"Running multi-GPU benchmark on {benchmark.gpu_count} GPUs...")
+            result = benchmark.benchmark_multi_gpu(duration_seconds=duration*60)
+
+        else:  # suite
+            result = benchmark.run_benchmark_suite(device_id, suite_type=suite_type)
+
+        # Display results
+        click.echo(json.dumps(result, indent=2, default=str))
+
+        # Export if requested
+        if export and result:
+            click.echo("\nExporting results...")
+            filepaths = benchmark.export_results(result, output_dir=output_dir)
+            for format_type, filepath in filepaths.items():
+                click.echo(f"  {format_type.upper()}: {filepath}")
+
+    except KeyboardInterrupt:
+        click.echo("\nBenchmark interrupted by user")
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        import traceback
+        traceback.print_exc()
 
 
 @cli.command()

@@ -14,6 +14,7 @@ from ..monitors.network import NetworkMonitor
 from ..monitors.gpu import GPUMonitor
 from ..monitors.speedtest import SpeedTestMonitor
 from ..monitors.gpu_benchmark import GPUBenchmark
+from ..monitors.gpu_stress_benchmark import GPUStressBenchmark
 from ..storage.database import HistoricalDatabase
 from ..storage.exporter import DataExporter
 from ..alerts.alert_manager import AlertManager
@@ -45,6 +46,7 @@ class MonitoringAPI:
         self.gpu_monitor = GPUMonitor()
         self.speedtest_monitor = SpeedTestMonitor()
         self.gpu_benchmark = GPUBenchmark()
+        self.gpu_stress_benchmark = GPUStressBenchmark()
 
         # Initialize storage and alerts
         self.db = HistoricalDatabase()
@@ -80,6 +82,7 @@ class MonitoringAPI:
                     "network": "/api/network",
                     "gpu": "/api/gpu",
                     "gpu_benchmark": "/api/gpu/benchmark",
+                    "gpu_stress": "/api/gpu/stress",
                     "speedtest": "/api/speedtest",
                     "history": "/api/history/{metric}",
                     "alerts": "/api/alerts",
@@ -377,6 +380,198 @@ class MonitoringAPI:
                         "message": "No GPU or GPU libraries available"
                     }
                 return self.gpu_benchmark.get_gpu_info(device_id)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.post("/api/gpu/stress/mixed-precision")
+        async def run_mixed_precision_stress(
+            device_id: int = Query(0, description="GPU device ID"),
+            size: int = Query(4096, description="Matrix size for operations"),
+            iterations: int = Query(100, description="Number of iterations")
+        ):
+            """Run mixed precision stress test (FP32, FP16, BF16)."""
+            try:
+                if not self.gpu_stress_benchmark.is_available():
+                    raise HTTPException(
+                        status_code=400,
+                        detail="GPU stress testing not available. Requires PyTorch with CUDA."
+                    )
+
+                result = self.gpu_stress_benchmark.benchmark_mixed_precision(
+                    device_id=device_id,
+                    size=size,
+                    iterations=iterations
+                )
+
+                if 'error' in result:
+                    raise HTTPException(status_code=500, detail=result.get('error'))
+
+                return result
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.post("/api/gpu/stress/memory-stress")
+        async def run_memory_stress(
+            device_id: int = Query(0, description="GPU device ID"),
+            fill_percentage: float = Query(0.9, description="Percentage of GPU memory to fill (0.0-0.95)"),
+            duration_seconds: int = Query(60, description="Test duration in seconds")
+        ):
+            """Run GPU memory stress test."""
+            try:
+                if not self.gpu_stress_benchmark.is_available():
+                    raise HTTPException(
+                        status_code=400,
+                        detail="GPU stress testing not available. Requires PyTorch with CUDA."
+                    )
+
+                if fill_percentage < 0.0 or fill_percentage > 0.95:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="fill_percentage must be between 0.0 and 0.95"
+                    )
+
+                result = self.gpu_stress_benchmark.benchmark_memory_stress(
+                    device_id=device_id,
+                    fill_percentage=fill_percentage,
+                    duration_seconds=duration_seconds
+                )
+
+                if 'error' in result:
+                    raise HTTPException(status_code=500, detail=result.get('error'))
+
+                return result
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.post("/api/gpu/stress/sustained-load")
+        async def run_sustained_load_stress(
+            device_id: int = Query(0, description="GPU device ID"),
+            duration_minutes: int = Query(10, description="Test duration in minutes"),
+            workload_intensity: str = Query("high", description="Workload intensity: low, medium, high, extreme")
+        ):
+            """Run sustained GPU load stress test."""
+            try:
+                if not self.gpu_stress_benchmark.is_available():
+                    raise HTTPException(
+                        status_code=400,
+                        detail="GPU stress testing not available. Requires PyTorch with CUDA."
+                    )
+
+                valid_intensities = ["low", "medium", "high", "extreme"]
+                if workload_intensity not in valid_intensities:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"workload_intensity must be one of: {', '.join(valid_intensities)}"
+                    )
+
+                result = self.gpu_stress_benchmark.benchmark_sustained_load(
+                    device_id=device_id,
+                    duration_minutes=duration_minutes,
+                    workload_intensity=workload_intensity
+                )
+
+                if 'error' in result:
+                    raise HTTPException(status_code=500, detail=result.get('error'))
+
+                return result
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.post("/api/gpu/stress/multi-gpu")
+        async def run_multi_gpu_stress(
+            duration_seconds: int = Query(60, description="Test duration in seconds")
+        ):
+            """Run stress test on all available GPUs simultaneously."""
+            try:
+                if not self.gpu_stress_benchmark.is_available():
+                    raise HTTPException(
+                        status_code=400,
+                        detail="GPU stress testing not available. Requires PyTorch with CUDA."
+                    )
+
+                result = self.gpu_stress_benchmark.benchmark_multi_gpu(
+                    duration_seconds=duration_seconds
+                )
+
+                if 'error' in result:
+                    raise HTTPException(status_code=500, detail=result.get('error'))
+
+                return result
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.post("/api/gpu/stress/suite")
+        async def run_stress_benchmark_suite(
+            device_id: int = Query(0, description="GPU device ID"),
+            suite_type: str = Query("standard", description="Suite type: quick, standard, comprehensive"),
+            export_results: bool = Query(False, description="Export results to JSON/CSV"),
+            output_dir: str = Query("./benchmark_results", description="Output directory for exports")
+        ):
+            """Run complete GPU stress benchmark suite."""
+            try:
+                if not self.gpu_stress_benchmark.is_available():
+                    raise HTTPException(
+                        status_code=400,
+                        detail="GPU stress testing not available. Requires PyTorch with CUDA."
+                    )
+
+                valid_suites = ["quick", "standard", "comprehensive"]
+                if suite_type not in valid_suites:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"suite_type must be one of: {', '.join(valid_suites)}"
+                    )
+
+                result = self.gpu_stress_benchmark.run_benchmark_suite(
+                    device_id=device_id,
+                    suite_type=suite_type
+                )
+
+                if 'error' in result:
+                    raise HTTPException(status_code=500, detail=result.get('error'))
+
+                # Export results if requested
+                if export_results and 'error' not in result:
+                    export_paths = self.gpu_stress_benchmark.export_results(
+                        results=result,
+                        output_dir=output_dir,
+                        formats=['json', 'csv']
+                    )
+                    result['exported_files'] = export_paths
+
+                return result
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.get("/api/gpu/stress/info")
+        async def get_gpu_stress_info():
+            """Get GPU stress testing availability and capabilities."""
+            try:
+                return {
+                    "available": self.gpu_stress_benchmark.is_available(),
+                    "torch_available": self.gpu_stress_benchmark.torch_available,
+                    "cuda_available": self.gpu_stress_benchmark.cuda_available,
+                    "gpu_count": self.gpu_stress_benchmark.gpu_count if self.gpu_stress_benchmark.is_available() else 0,
+                    "suite_types": ["quick", "standard", "comprehensive"],
+                    "workload_intensities": ["low", "medium", "high", "extreme"],
+                    "test_types": [
+                        "mixed-precision",
+                        "memory-stress",
+                        "sustained-load",
+                        "multi-gpu",
+                        "suite"
+                    ]
+                }
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
 
