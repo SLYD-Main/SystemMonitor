@@ -170,8 +170,7 @@ Restart=always
 RestartSec=10
 ExecStart=/usr/local/bin/dcgm-exporter \\
     -a 0.0.0.0:${DCGM_PORT} \\
-    -c /etc/dcgm-exporter/default-counters.csv \\
-    -d f
+    -f /etc/dcgm-exporter/default-counters.csv
 StandardOutput=journal
 StandardError=journal
 
