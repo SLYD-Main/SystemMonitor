@@ -209,9 +209,11 @@ elif [ -d "$INSTALL_DIR" ]; then
     rm -rf "$INSTALL_DIR"
     print_msg "Cloning repository..."
     git clone -b "$REPO_BRANCH" "$REPO_URL" "$INSTALL_DIR"
+    chown -R "$SERVICE_USER":"$SERVICE_USER" "$INSTALL_DIR"
 else
     print_msg "Cloning repository..."
     git clone -b "$REPO_BRANCH" "$REPO_URL" "$INSTALL_DIR"
+    chown -R "$SERVICE_USER":"$SERVICE_USER" "$INSTALL_DIR"
 fi
 
 cd "$INSTALL_DIR"
