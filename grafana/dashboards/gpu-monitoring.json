@@ -83,7 +83,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "system_gpu_temperature_celsius",
+          "expr": "DCGM_FI_DEV_GPU_TEMP",
           "refId": "A"
         }
       ],
@@ -148,7 +148,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "system_gpu_utilization_percent",
+          "expr": "DCGM_FI_DEV_GPU_UTIL",
           "refId": "A"
         }
       ],
@@ -213,7 +213,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "system_gpu_memory_percent",
+          "expr": "(DCGM_FI_DEV_FB_USED / DCGM_FI_DEV_FB_TOTAL) * 100",
           "refId": "A"
         }
       ],
@@ -278,7 +278,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "system_gpu_power_draw_watts",
+          "expr": "DCGM_FI_DEV_POWER_USAGE",
           "refId": "A"
         }
       ],
@@ -364,7 +364,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "system_gpu_temperature_celsius",
+          "expr": "DCGM_FI_DEV_GPU_TEMP",
           "refId": "A",
           "legendFormat": "{{gpu_name}}"
         }
@@ -451,7 +451,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "system_gpu_utilization_percent",
+          "expr": "DCGM_FI_DEV_GPU_UTIL",
           "refId": "A",
           "legendFormat": "{{gpu_name}}"
         }
@@ -538,7 +538,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "system_gpu_memory_used_mb",
+          "expr": "DCGM_FI_DEV_FB_USED",
           "refId": "A",
           "legendFormat": "{{gpu_name}} - Used"
         },
@@ -547,7 +547,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "system_gpu_memory_free_mb",
+          "expr": "DCGM_FI_DEV_FB_FREE",
           "refId": "B",
           "legendFormat": "{{gpu_name}} - Free"
         }
@@ -634,7 +634,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "system_gpu_power_draw_watts",
+          "expr": "DCGM_FI_DEV_POWER_USAGE",
           "refId": "A",
           "legendFormat": "{{gpu_name}} - Draw"
         },
@@ -643,7 +643,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "system_gpu_power_limit_watts",
+          "expr": "DCGM_FI_DEV_POWER_MGMT_LIMIT",
           "refId": "B",
           "legendFormat": "{{gpu_name}} - Limit"
         }
@@ -730,7 +730,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "system_gpu_clock_graphics_mhz * 1000000",
+          "expr": "DCGM_FI_DEV_SM_CLOCK * 1000000",
           "refId": "A",
           "legendFormat": "{{gpu_name}} - Graphics Clock"
         },
@@ -739,7 +739,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "system_gpu_clock_memory_mhz * 1000000",
+          "expr": "DCGM_FI_DEV_MEM_CLOCK * 1000000",
           "refId": "B",
           "legendFormat": "{{gpu_name}} - Memory Clock"
         }
@@ -826,7 +826,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "system_gpu_fan_speed_percent",
+          "expr": "DCGM_FI_DEV_FAN_SPEED",
           "refId": "A",
           "legendFormat": "{{gpu_name}} - Fan Speed"
         }
