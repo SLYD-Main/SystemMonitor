@@ -32,6 +32,9 @@ ENABLE_HISTORY="true"
 NON_INTERACTIVE="false"
 INSTALL_GPU_DRIVERS="false"
 INSTALL_PYTORCH="false"
+INSTALL_GRAFANA="false"
+PROMETHEUS_PORT="9090"
+GRAFANA_PORT="3000"
 TIMEZONE=""
 REPO_BRANCH="master"
 
@@ -71,6 +74,9 @@ Options:
     --timezone TZ             Set system timezone (e.g., America/New_York)
     --install-gpu-drivers     Install NVIDIA GPU drivers
     --install-pytorch         Install PyTorch with CUDA support for GPU benchmarks
+    --install-grafana         Install Grafana and Prometheus for monitoring dashboards
+    --prometheus-port PORT    Prometheus port (default: 9090)
+    --grafana-port PORT       Grafana port (default: 3000)
     --non-interactive         Run without interactive prompts
     -h, --help                Show this help message
 
@@ -78,16 +84,17 @@ Examples:
     # Simple installation
     curl -fsSL https://raw.githubusercontent.com/SLYD-Main/SystemMonitor/master/bootstrap.sh | sudo bash
 
-    # Custom installation with GPU support
+    # Full installation with GPU support and Grafana
     curl -fsSL https://raw.githubusercontent.com/SLYD-Main/SystemMonitor/master/bootstrap.sh \\
     | sudo bash -s -- \\
       --non-interactive \\
       --install-dir /opt/SystemMonitor \\
-      --api-port 8080 \\
+      --api-port 8000 \\
       --enable-history \\
       --timezone America/New_York \\
       --install-gpu-drivers \\
-      --install-pytorch
+      --install-pytorch \\
+      --install-grafana
 
 EOF
     exit 0
@@ -136,6 +143,18 @@ while [[ $# -gt 0 ]]; do
             INSTALL_PYTORCH="true"
             shift
             ;;
+        --install-grafana)
+            INSTALL_GRAFANA="true"
+            shift
+            ;;
+        --prometheus-port)
+            PROMETHEUS_PORT="$2"
+            shift 2
+            ;;
+        --grafana-port)
+            GRAFANA_PORT="$2"
+            shift 2
+            ;;
         --non-interactive)
             NON_INTERACTIVE="true"
             shift
@@ -169,6 +188,11 @@ print_info "  API Port: $API_PORT"
 print_info "  History Logging: $ENABLE_HISTORY"
 print_info "  GPU Drivers: $INSTALL_GPU_DRIVERS"
 print_info "  PyTorch with CUDA: $INSTALL_PYTORCH"
+print_info "  Grafana Dashboard: $INSTALL_GRAFANA"
+if [ "$INSTALL_GRAFANA" = "true" ]; then
+    print_info "    - Prometheus Port: $PROMETHEUS_PORT"
+    print_info "    - Grafana Port: $GRAFANA_PORT"
+fi
 if [ -n "$TIMEZONE" ]; then
     print_info "  Timezone: $TIMEZONE"
 fi
@@ -307,6 +331,27 @@ if [ "$INSTALL_GPU_DRIVERS" = "true" ]; then
     print_warning "GPU drivers installed. Reboot required for drivers to take effect!"
 fi
 
+# Install Grafana and Prometheus if requested
+if [ "$INSTALL_GRAFANA" = "true" ]; then
+    print_msg "Installing Grafana and Prometheus..."
+
+    # Make install script executable
+    chmod +x "$INSTALL_DIR/install_grafana.sh"
+
+    # Run Grafana installation script
+    export INSTALL_DIR="$INSTALL_DIR"
+    export PROMETHEUS_PORT="$PROMETHEUS_PORT"
+    export GRAFANA_PORT="$GRAFANA_PORT"
+
+    "$INSTALL_DIR/install_grafana.sh"
+
+    if [ $? -eq 0 ]; then
+        print_msg "Grafana and Prometheus installed successfully!"
+    else
+        print_error "Grafana installation failed. Check logs for details."
+    fi
+fi
+
 # Print completion message
 echo ""
 echo "========================================="
@@ -332,6 +377,18 @@ echo ""
 echo "Configuration:"
 echo "  $INSTALL_DIR/config.yaml"
 echo ""
+
+if [ "$INSTALL_GRAFANA" = "true" ]; then
+    SERVER_IP=$(hostname -I | awk '{print $1}')
+    echo "Monitoring Dashboards:"
+    echo "  Grafana:    http://${SERVER_IP}:${GRAFANA_PORT}"
+    echo "  Prometheus: http://${SERVER_IP}:${PROMETHEUS_PORT}"
+    echo ""
+    echo "  Default Grafana credentials:"
+    echo "    Username: admin"
+    echo "    Password: admin"
+    echo ""
+fi
 
 if [ "$INSTALL_GPU_DRIVERS" = "true" ]; then
     echo ""

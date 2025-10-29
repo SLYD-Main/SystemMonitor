@@ -1,0 +1,44 @@
+# Prometheus Configuration for System Monitor
+global:
+  scrape_interval: 15s # Scrape metrics every 15 seconds
+  evaluation_interval: 15s # Evaluate rules every 15 seconds
+  external_labels:
+    monitor: 'system-monitor'
+
+# Alertmanager configuration (optional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+# rule_files:
+#   - "alerts.yml"
+
+# Scrape configuration
+scrape_configs:
+  # System Monitor API metrics
+  - job_name: 'system-monitor'
+    static_configs:
+      - targets: ['localhost:8000']
+        labels:
+          service: 'system-monitor-api'
+          environment: 'production'
+
+    # Scrape interval for this job (overrides global)
+    scrape_interval: 10s
+    scrape_timeout: 10s
+
+    # Metrics path (defaults to /metrics)
+    metrics_path: '/metrics'
+
+    # Scheme (http or https)
+    scheme: 'http'
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'

@@ -1,7 +1,7 @@
 """REST API server for system monitoring."""
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, Response
 from typing import Optional, Dict, List
 from datetime import datetime
 import uvicorn
@@ -18,6 +18,7 @@ from ..monitors.gpu_stress_benchmark import GPUStressBenchmark
 from ..storage.database import HistoricalDatabase
 from ..storage.exporter import DataExporter
 from ..alerts.alert_manager import AlertManager
+from ..metrics.prometheus_exporter import PrometheusExporter
 from ..config import Config
 
 
@@ -53,6 +54,9 @@ class MonitoringAPI:
         self.exporter = DataExporter(self.config.get("export.directory", "./exports"))
         self.alert_manager = AlertManager(self.config.get_thresholds())
 
+        # Initialize Prometheus exporter
+        self.prometheus_exporter = PrometheusExporter()
+
         # Configure CORS
         if self.config.get("api.enable_cors", True):
             self.app.add_middleware(
@@ -86,7 +90,8 @@ class MonitoringAPI:
                     "speedtest": "/api/speedtest",
                     "history": "/api/history/{metric}",
                     "alerts": "/api/alerts",
-                    "export": "/api/export"
+                    "export": "/api/export",
+                    "metrics": "/metrics"
                 }
             }
 
@@ -699,6 +704,22 @@ class MonitoringAPI:
                     "gpu": self.gpu_monitor.is_available()
                 }
             }
+
+        @self.app.get("/metrics")
+        async def prometheus_metrics():
+            """
+            Prometheus metrics endpoint.
+
+            Returns system metrics in Prometheus text format for scraping.
+            """
+            try:
+                metrics = self.prometheus_exporter.generate_metrics()
+                return Response(
+                    content=metrics,
+                    media_type=self.prometheus_exporter.get_content_type()
+                )
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
 
     def run(self, host: Optional[str] = None, port: Optional[int] = None):
         """
