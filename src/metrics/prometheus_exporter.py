@@ -204,6 +204,10 @@ class PrometheusExporter:
                 if interface == 'total':
                     continue
 
+                # Skip if counters is not a dict (sometimes psutil returns strings)
+                if not isinstance(counters, dict):
+                    continue
+
                 bytes_sent = counters.get('bytes_sent', 0)
                 bytes_recv = counters.get('bytes_recv', 0)
                 packets_sent = counters.get('packets_sent', 0)
@@ -261,37 +265,41 @@ class PrometheusExporter:
                     gpu_name = gpu.get('name', 'unknown')
 
                     # Temperature
-                    if 'temperature' in gpu and gpu['temperature'] is not None:
+                    if 'temperature' in gpu and isinstance(gpu['temperature'], (int, float)):
                         self.gpu_temperature.labels(gpu_id=gpu_id, gpu_name=gpu_name).set(gpu['temperature'])
 
                     # Utilization
-                    if 'utilization' in gpu and gpu['utilization'] is not None:
+                    if 'utilization' in gpu and isinstance(gpu['utilization'], (int, float)):
                         self.gpu_utilization.labels(gpu_id=gpu_id, gpu_name=gpu_name).set(gpu['utilization'])
 
                     # Memory
-                    if 'memory' in gpu:
+                    if 'memory' in gpu and isinstance(gpu['memory'], dict):
                         mem = gpu['memory']
-                        self.gpu_memory_total.labels(gpu_id=gpu_id, gpu_name=gpu_name).set(mem.get('total', 0))
-                        self.gpu_memory_used.labels(gpu_id=gpu_id, gpu_name=gpu_name).set(mem.get('used', 0))
-                        self.gpu_memory_free.labels(gpu_id=gpu_id, gpu_name=gpu_name).set(mem.get('free', 0))
-                        self.gpu_memory_percent.labels(gpu_id=gpu_id, gpu_name=gpu_name).set(mem.get('percent', 0))
+                        if isinstance(mem.get('total'), (int, float)):
+                            self.gpu_memory_total.labels(gpu_id=gpu_id, gpu_name=gpu_name).set(mem['total'])
+                        if isinstance(mem.get('used'), (int, float)):
+                            self.gpu_memory_used.labels(gpu_id=gpu_id, gpu_name=gpu_name).set(mem['used'])
+                        if isinstance(mem.get('free'), (int, float)):
+                            self.gpu_memory_free.labels(gpu_id=gpu_id, gpu_name=gpu_name).set(mem['free'])
+                        if isinstance(mem.get('percent'), (int, float)):
+                            self.gpu_memory_percent.labels(gpu_id=gpu_id, gpu_name=gpu_name).set(mem['percent'])
 
                     # Power
-                    if 'power_draw' in gpu and gpu['power_draw'] is not None:
+                    if 'power_draw' in gpu and isinstance(gpu['power_draw'], (int, float)):
                         self.gpu_power_draw.labels(gpu_id=gpu_id, gpu_name=gpu_name).set(gpu['power_draw'])
-                    if 'power_limit' in gpu and gpu['power_limit'] is not None:
+                    if 'power_limit' in gpu and isinstance(gpu['power_limit'], (int, float)):
                         self.gpu_power_limit.labels(gpu_id=gpu_id, gpu_name=gpu_name).set(gpu['power_limit'])
 
                     # Clock speeds
-                    if 'clocks' in gpu:
+                    if 'clocks' in gpu and isinstance(gpu['clocks'], dict):
                         clocks = gpu['clocks']
-                        if 'graphics' in clocks and clocks['graphics'] is not None:
+                        if 'graphics' in clocks and isinstance(clocks['graphics'], (int, float)):
                             self.gpu_clock_graphics.labels(gpu_id=gpu_id, gpu_name=gpu_name).set(clocks['graphics'])
-                        if 'memory' in clocks and clocks['memory'] is not None:
+                        if 'memory' in clocks and isinstance(clocks['memory'], (int, float)):
                             self.gpu_clock_memory.labels(gpu_id=gpu_id, gpu_name=gpu_name).set(clocks['memory'])
 
                     # Fan speed
-                    if 'fan_speed' in gpu and gpu['fan_speed'] is not None:
+                    if 'fan_speed' in gpu and isinstance(gpu['fan_speed'], (int, float)):
                         self.gpu_fan_speed.labels(gpu_id=gpu_id, gpu_name=gpu_name).set(gpu['fan_speed'])
 
         except Exception as e:
