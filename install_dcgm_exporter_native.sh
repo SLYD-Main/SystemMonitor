@@ -12,9 +12,10 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-DCGM_EXPORTER_VERSION="${DCGM_EXPORTER_VERSION:-3.3.9-3.6.0}"
+DCGM_EXPORTER_VERSION="${DCGM_EXPORTER_VERSION:-3.3.5-3.4.2}"
 DCGM_PORT="${DCGM_PORT:-9400}"
 INSTALL_DIR="/opt/dcgm-exporter"
+GO_VERSION="1.22.10"
 
 # Print colored message
 print_msg() {
@@ -67,7 +68,22 @@ print_msg "DCGM service is running"
 # Install build dependencies
 print_msg "Installing build dependencies..."
 apt-get update -qq
-apt-get install -y -qq golang-go git make
+apt-get install -y -qq git make wget
+
+# Install Go (required version for building DCGM exporter)
+if ! command -v go &> /dev/null || ! go version | grep -q "go${GO_VERSION}"; then
+    print_msg "Installing Go ${GO_VERSION}..."
+    cd /tmp
+    wget -q https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz
+    rm -rf /usr/local/go
+    tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz
+    rm go${GO_VERSION}.linux-amd64.tar.gz
+    export PATH=$PATH:/usr/local/go/bin
+    echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
+else
+    print_info "Go already installed: $(go version)"
+    export PATH=$PATH:/usr/local/go/bin
+fi
 
 # Create installation directory
 mkdir -p "$INSTALL_DIR"
@@ -78,15 +94,34 @@ print_msg "Cloning DCGM exporter repository..."
 if [ -d "$INSTALL_DIR/.git" ]; then
     print_info "Repository already exists, updating..."
     git fetch --all
-    git checkout "$DCGM_EXPORTER_VERSION" || git checkout main
-    git pull
+    git checkout "$DCGM_EXPORTER_VERSION" 2>/dev/null || {
+        print_warning "Version $DCGM_EXPORTER_VERSION not found, trying without patch version..."
+        git checkout $(git tag | grep "^${DCGM_EXPORTER_VERSION%.*}" | tail -1) 2>/dev/null || {
+            print_warning "Using main branch"
+            git checkout main
+        }
+    }
+    git pull 2>/dev/null || true
 else
     git clone https://github.com/NVIDIA/dcgm-exporter.git .
-    git checkout "$DCGM_EXPORTER_VERSION" || print_warning "Version $DCGM_EXPORTER_VERSION not found, using main branch"
+    git checkout "$DCGM_EXPORTER_VERSION" 2>/dev/null || {
+        print_warning "Exact version $DCGM_EXPORTER_VERSION not found, trying to find compatible version..."
+        # Try to find a tag that starts with the version prefix
+        COMPATIBLE_TAG=$(git tag | grep "^${DCGM_EXPORTER_VERSION%.*}" | tail -1)
+        if [ -n "$COMPATIBLE_TAG" ]; then
+            print_info "Using version: $COMPATIBLE_TAG"
+            git checkout "$COMPATIBLE_TAG"
+        else
+            print_warning "No compatible version found, using main branch"
+            git checkout main
+        fi
+    }
 fi
 
 # Build the exporter
 print_msg "Building DCGM exporter (this may take a few minutes)..."
+export PATH=$PATH:/usr/local/go/bin
+export GOPATH=$HOME/go
 make binary
 
 # Verify binary was created
