@@ -346,6 +346,34 @@ python main.py api --port 8001
 | `history` | View historical data | `python main.py history cpu --hours 24` |
 | `alerts` | Check system alerts | `python main.py alerts` |
 
+## Updating
+
+If you installed System Monitor using the bootstrap script, use the included update script:
+
+```bash
+sudo /opt/SystemMonitor/update.sh
+```
+
+Or update manually:
+
+```bash
+cd /opt/SystemMonitor
+sudo chown -R sysmonitor:sysmonitor .git
+sudo -u sysmonitor git fetch origin
+sudo -u sysmonitor git reset --hard origin/master
+sudo systemctl restart system-monitor
+```
+
+**Important**: Always use `git reset --hard origin/master` instead of `git pull` to avoid merge conflicts from local changes made by scripts running as root.
+
+To update Grafana dashboards after updating:
+
+```bash
+sudo cp /opt/SystemMonitor/grafana/dashboards/*.json /var/lib/grafana/dashboards/
+sudo chown -R grafana:grafana /var/lib/grafana/dashboards
+sudo systemctl restart grafana-server
+```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit issues and pull requests.

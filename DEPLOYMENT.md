@@ -435,20 +435,51 @@ sudo systemctl restart system-monitor
 
 ## Updating the Application
 
+### Using the Update Script (Recommended)
+
+The easiest way to update is using the included update script:
+
 ```bash
-# Stop service
-sudo systemctl stop system-monitor
-
-# Pull latest code
-cd /opt/SystemMonitor
-sudo -u sysmonitor git pull
-
-# Update dependencies
-sudo -u sysmonitor bash -c "source venv/bin/activate && pip install -r requirements.txt"
-
-# Restart service
-sudo systemctl start system-monitor
+sudo /opt/SystemMonitor/update.sh
 ```
+
+This script automatically:
+- Fixes git repository ownership
+- Resets any local changes and pulls latest code
+- Updates Python dependencies
+- Updates Grafana dashboards (if installed)
+- Restarts all services
+
+### Manual Update
+
+If you prefer to update manually:
+
+```bash
+# Fix git ownership (important - prevents permission errors)
+cd /opt/SystemMonitor
+sudo chown -R sysmonitor:sysmonitor .git
+
+# Reset local changes and pull latest
+# Note: Use 'git reset --hard' instead of 'git pull' to avoid merge conflicts
+# from local changes made by scripts running as root
+sudo -u sysmonitor git fetch origin
+sudo -u sysmonitor git reset --hard origin/master
+
+# Update Python dependencies
+sudo -u sysmonitor bash -c "source venv/bin/activate && pip install -q --upgrade pip && pip install -q -r requirements.txt"
+
+# Update Grafana dashboards (if installed)
+if [ -d /var/lib/grafana/dashboards ]; then
+  sudo cp grafana/dashboards/*.json /var/lib/grafana/dashboards/
+  sudo chown -R grafana:grafana /var/lib/grafana/dashboards
+  sudo systemctl restart grafana-server
+fi
+
+# Restart System Monitor
+sudo systemctl restart system-monitor
+```
+
+**Important**: Always use `git reset --hard origin/master` instead of `git pull`. This prevents merge conflicts that occur when installation scripts modify files as root.
 
 ## Uninstallation
 
