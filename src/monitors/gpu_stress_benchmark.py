@@ -41,6 +41,20 @@ class GPUStressBenchmark:
         except:
             pass
 
+    def is_available(self) -> bool:
+        """
+        Check if GPU stress benchmarking is available.
+
+        Returns:
+            True if PyTorch with CUDA is available
+        """
+        return self.torch_available
+
+    @property
+    def cuda_available(self) -> bool:
+        """Check if CUDA is available."""
+        return self.torch_available
+
     def monitor_gpu_metrics(self, device_id: int = 0, interval: float = 0.5):
         """
         Background thread to monitor GPU metrics during benchmarks.
