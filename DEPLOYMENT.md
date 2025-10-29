@@ -251,8 +251,15 @@ nvidia-smi
 # Install PyTorch for GPU benchmarks
 cd /opt/SystemMonitor
 source venv/bin/activate
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+
+# For Blackwell GPUs (RTX 50-series, B200, etc.) use CUDA 12.8+
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+
+# For older GPUs, CUDA 12.1 is sufficient
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 ```
+
+**Note:** Blackwell GPUs (compute capability 12.0) require PyTorch 2.7.0+ with CUDA 12.8 or later for MLPerf benchmarks.
 
 ### Verify GPU Support
 
@@ -260,11 +267,14 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 cd /opt/SystemMonitor
 source venv/bin/activate
 
-# Check GPU info
+# Check GPU info and verify CUDA availability
 python main.py gpu-benchmark --test info
 
-# Run full benchmark
+# Run full benchmark (includes memory, compute, stress tests)
 python main.py gpu-benchmark --test full
+
+# Run MLPerf benchmarks (ResNet-50 + BERT)
+python main.py gpu-benchmark --test mlperf
 ```
 
 ## Configuration

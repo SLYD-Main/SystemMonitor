@@ -236,9 +236,10 @@ sudo -u "$SERVICE_USER" bash -c "source venv/bin/activate && pip install -q --up
 
 # Install PyTorch with CUDA if requested
 if [ "$INSTALL_PYTORCH" = "true" ]; then
-    print_msg "Installing PyTorch with CUDA support (this may take several minutes)..."
-    sudo -u "$SERVICE_USER" bash -c "source venv/bin/activate && pip install -q torch torchvision --index-url https://download.pytorch.org/whl/cu121"
-    print_msg "PyTorch with CUDA installed successfully"
+    print_msg "Installing PyTorch with CUDA 12.8 support (this may take several minutes)..."
+    print_info "  CUDA 12.8 provides support for Blackwell GPUs (compute capability 12.0)"
+    sudo -u "$SERVICE_USER" bash -c "source venv/bin/activate && pip install -q torch torchvision --index-url https://download.pytorch.org/whl/cu128"
+    print_msg "PyTorch with CUDA 12.8 installed successfully"
 fi
 
 # Create necessary directories
