@@ -1,6 +1,17 @@
 #!/bin/bash
-# Enable DCGM Profiling Metrics
-# This script enables profiling metrics for detailed GPU monitoring
+# Enable DCGM Profiling Metrics Configuration
+#
+# This script configures DCGM exporter to use a metrics file that includes
+# profiling metrics (SM Activity, Compute Pipes, DRAM utilization, etc.)
+#
+# IMPORTANT: Profiling metrics require DCGM's profiling module, which may not
+# be available on all GPU models or DCGM versions. Known limitations:
+# - RTX PRO 6000 Blackwell: Profiling module not supported in DCGM 3.3.5-3.4.2
+# - Consumer/Gaming GPUs: Profiling typically not supported
+# - Datacenter GPUs (A100, H100, V100, L4, L40): Usually supported
+#
+# If profiling metrics are not available, the exporter will log warnings but
+# will still export all standard metrics (temperature, utilization, power, etc.)
 
 set -e
 
