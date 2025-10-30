@@ -80,7 +80,8 @@ Restart=always
 RestartSec=10
 ExecStart=/usr/local/bin/dcgm-exporter \\
     -a 0.0.0.0:${DCGM_PORT} \\
-    -f /etc/dcgm-exporter/dcgm-metrics-profiling.csv
+    -f /etc/dcgm-exporter/dcgm-metrics-profiling.csv \\
+    -enable-profiling
 StandardOutput=journal
 StandardError=journal
 
